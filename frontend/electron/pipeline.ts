@@ -9,7 +9,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { CaptureService, CaptureResult as ServiceCaptureResult } from './capture-service';
+import { CaptureManager, CaptureResult as ServiceCaptureResult, CaptureError } from './capture';
 import { BackendBridge }   from './backend-bridge';
 import { PopupManager }    from './popup-manager';
 
@@ -17,7 +17,7 @@ import { PopupManager }    from './popup-manager';
 
 export interface PipelineOptions {
   mode:     'ocr-only' | 'ocr+ai';
-  capture?: 'active-window' | 'fullscreen';
+  capture?: 'active-window' | 'fullscreen' | 'region';
 }
 
 export interface PipelineResult {
@@ -59,7 +59,7 @@ export class Pipeline extends EventEmitter {
   private busy = false;
 
   constructor(
-    private readonly captureService: CaptureService,
+    private readonly captureManager: CaptureManager,
     private readonly bridge:         BackendBridge,
     private readonly popupManager:   PopupManager,
   ) {
@@ -85,6 +85,13 @@ export class Pipeline extends EventEmitter {
     try {
       await this.execute(options, t0);
     } catch (err) {
+      // REGION_CANCELLED is a user-initiated action, not an error
+      if (err instanceof CaptureError && err.code === 'REGION_CANCELLED') {
+        console.log('[Pipeline] Region selection cancelled by user');
+        this.emit('status', 'idle' satisfies PipelineStatus);
+        return;
+      }
+
       const error = err instanceof Error ? err : new Error(String(err));
       console.error('[Pipeline] Unhandled error:', error.message);
       this.emit('error', error);
@@ -106,16 +113,21 @@ export class Pipeline extends EventEmitter {
 
     // ── Stage 1: Capture ──────────────────────────────────────────────────
     this.emit('status', 'capturing' satisfies PipelineStatus);
-    const tCapture0 = performance.now();
 
     let captureResult: ServiceCaptureResult;
     try {
-      captureResult = await this.captureService.capture(captureMode);
+      captureResult = await this.captureManager.capture({
+        mode:    captureMode === 'region' ? 'region' : 'fullscreen',
+        quality: 'balanced',
+        delayMs: 80,
+      });
     } catch (err) {
+      // Re-throw CaptureError (including REGION_CANCELLED) to be handled by run()
+      if (err instanceof CaptureError) throw err;
       throw this.stageError('capture', err);
     }
 
-    const captureMs = Math.round(performance.now() - tCapture0);
+    const captureMs = captureResult.timing.captureMs;
     console.log(`[Pipeline] Capture: ${captureMs}ms (${captureResult.width}×${captureResult.height})`);
 
     // ── Stage 2: OCR ──────────────────────────────────────────────────────

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
+  <title>ARKI Region Selector</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #canvas {
+      position: fixed;
+      inset: 0;
+      cursor: crosshair;
+      display: block;
+    }
+
+    #instructions {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.70);
+      color: #ffffff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      pointer-events: none;
+      white-space: nowrap;
+      letter-spacing: 0.01em;
+      transition: opacity 0.15s ease;
+      z-index: 10;
+    }
+
+    #instructions.hidden {
+      opacity: 0;
+    }
+
+    #toolbar {
+      position: fixed;
+      background: rgba(12, 12, 18, 0.95);
+      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      z-index: 20;
+      min-width: 180px;
+    }
+
+    #toolbar-dims {
+      font-size: 12px;
+      color: #8888a0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      margin-right: auto;
+      white-space: nowrap;
+    }
+
+    #btn-confirm {
+      background: #6366f1;
+      color: #ffffff;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      white-space: nowrap;
+      transition: background 0.1s ease;
+      outline: none;
+    }
+
+    #btn-confirm:hover {
+      background: #5254cc;
+    }
+
+    #btn-confirm:active {
+      background: #4446b5;
+    }
+
+    #btn-cancel {
+      background: transparent;
+      color: #8888a0;
+      border: 1px solid transparent;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      white-space: nowrap;
+      transition: border-color 0.1s ease, color 0.1s ease;
+      outline: none;
+    }
+
+    #btn-cancel:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #aaaabc;
+    }
+
+    #btn-cancel:active {
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div id="instructions">
+    Click and drag to select a region &nbsp;·&nbsp; ESC to cancel
+  </div>
+
+  <div id="toolbar">
+    <span id="toolbar-dims">0 × 0</span>
+    <button id="btn-confirm">✓ Capture</button>
+    <button id="btn-cancel">✕</button>
+  </div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────────
+
+    var canvas       = document.getElementById('canvas');
+    var ctx          = canvas.getContext('2d');
+    var instructions = document.getElementById('instructions');
+    var toolbar      = document.getElementById('toolbar');
+    var toolbarDims  = document.getElementById('toolbar-dims');
+    var btnConfirm   = document.getElementById('btn-confirm');
+    var btnCancel    = document.getElementById('btn-cancel');
+
+    var bgImage     = null;   // HTMLImageElement — screenshot backdrop
+    var scaleFactor = 1;      // display scaleFactor (HiDPI multiplier)
+    var rafId       = null;   // requestAnimationFrame handle
+
+    /** Current selection in canvas (physical/native) pixels. Null when none. */
+    var selection   = null;   // { x, y, w, h } — already normalized
+
+    var dragging    = false;
+    var startX      = 0;
+    var startY      = 0;
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /**
+     * Normalize a rect so that w/h are always positive and x/y
+     * represent the top-left corner, regardless of drag direction.
+     */
+    function normalizeRect(r) {
+      return {
+        x: r.w < 0 ? r.x + r.w : r.x,
+        y: r.h < 0 ? r.y + r.h : r.y,
+        w: Math.abs(r.w),
+        h: Math.abs(r.h),
+      };
+    }
+
+    // ── Canvas rendering ───────────────────────────────────────────────────────
+
+    function drawHandles(x, y, w, h) {
+      var handles = [
+        [x,       y      ],   // top-left
+        [x + w/2, y      ],   // top-center
+        [x + w,   y      ],   // top-right
+        [x,       y + h/2],   // mid-left
+        [x + w,   y + h/2],   // mid-right
+        [x,       y + h  ],   // bottom-left
+        [x + w/2, y + h  ],   // bottom-center
+        [x + w,   y + h  ],   // bottom-right
+      ];
+
+      ctx.fillStyle   = '#ffffff';
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.8)';
+      ctx.lineWidth   = 1;
+
+      for (var i = 0; i < handles.length; i++) {
+        var hx = handles[i][0];
+        var hy = handles[i][1];
+        ctx.beginPath();
+        ctx.rect(hx - 3, hy - 3, 6, 6);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    function drawDimensionLabel(x, y, w, h) {
+      if (w < 20 || h < 20) return;
+
+      // Convert canvas (native) pixels → logical pixels for display
+      var lw   = Math.round(w / scaleFactor);
+      var lh   = Math.round(h / scaleFactor);
+      var text = lw + ' × ' + lh;   // "W × H"
+
+      ctx.font = '12px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+      var tm      = ctx.measureText(text);
+      var padding = 6;
+      var labelW  = tm.width + padding * 2;
+      var labelH  = 22;
+
+      // Position above selection; flip below if not enough space
+      var ly = y - labelH - 6;
+      if (ly < 4) ly = y + h + 6;
+
+      var lx = x + w / 2 - labelW / 2;
+      lx = Math.max(4, Math.min(canvas.width - labelW - 4, lx));
+
+      // Background pill
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(lx, ly, labelW, labelH, 4);
+      } else {
+        // Fallback for environments without roundRect
+        var r = 4;
+        ctx.moveTo(lx + r, ly);
+        ctx.lineTo(lx + labelW - r, ly);
+        ctx.quadraticCurveTo(lx + labelW, ly, lx + labelW, ly + r);
+        ctx.lineTo(lx + labelW, ly + labelH - r);
+        ctx.quadraticCurveTo(lx + labelW, ly + labelH, lx + labelW - r, ly + labelH);
+        ctx.lineTo(lx + r, ly + labelH);
+        ctx.quadraticCurveTo(lx, ly + labelH, lx, ly + labelH - r);
+        ctx.lineTo(lx, ly + r);
+        ctx.quadraticCurveTo(lx, ly, lx + r, ly);
+        ctx.closePath();
+      }
+      ctx.fill();
+
+      // Label text
+      ctx.fillStyle    = '#ffffff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, lx + padding, ly + labelH / 2);
+    }
+
+    function drawFrame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Screenshot backdrop
+      if (bgImage) {
+        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+      }
+
+      // 2. Full-canvas dim overlay
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (selection && selection.w > 0 && selection.h > 0) {
+        var x = selection.x;
+        var y = selection.y;
+        var w = selection.w;
+        var h = selection.h;
+
+        // 3. Punch out the dim over the selected region
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+        ctx.fillRect(x, y, w, h);
+        ctx.restore();
+
+        // 4. Redraw the crisp screenshot in the cut-out
+        if (bgImage) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x, y, w, h);
+          ctx.clip();
+          ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+        }
+
+        // 5. Selection border + glow
+        ctx.save();
+        ctx.strokeStyle  = 'rgba(99, 102, 241, 0.9)';
+        ctx.lineWidth    = 1.5;
+        ctx.shadowColor  = 'rgba(99, 102, 241, 0.5)';
+        ctx.shadowBlur   = 6;
+        ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+        ctx.shadowBlur   = 0;
+        ctx.restore();
+
+        // 6. Corner + edge handles
+        drawHandles(x, y, w, h);
+
+        // 7. Dimension label
+        ctx.save();
+        ctx.shadowBlur = 0;
+        drawDimensionLabel(x, y, w, h);
+        ctx.restore();
+      }
+
+      rafId = requestAnimationFrame(drawFrame);
+    }
+
+    function startRenderLoop() {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(drawFrame);
+    }
+
+    // ── Toolbar positioning ────────────────────────────────────────────────────
+
+    function positionToolbar() {
+      if (!selection) return;
+
+      var logX = selection.x / scaleFactor;
+      var logY = selection.y / scaleFactor;
+      var logW = selection.w / scaleFactor;
+      var logH = selection.h / scaleFactor;
+
+      // Logical canvas dimensions (CSS pixels)
+      var canvasLogW = canvas.width  / scaleFactor;
+      var canvasLogH = canvas.height / scaleFactor;
+
+      // Toolbar approximate dimensions (will reflow, use generous estimate)
+      var tbH = 52;
+
+      // Default: place below selection
+      var tbTop = logY + logH + 10;
+      if (tbTop + tbH > canvasLogH - 8) {
+        // Not enough room below; place above
+        tbTop = logY - tbH - 10;
+      }
+      if (tbTop < 8) tbTop = 8;
+
+      // Center horizontally over selection, clamped to viewport
+      var tbWidth = toolbar.offsetWidth || 200;
+      var tbLeft  = logX + logW / 2 - tbWidth / 2;
+      tbLeft = Math.max(8, Math.min(canvasLogW - tbWidth - 8, tbLeft));
+
+      toolbar.style.left = tbLeft + 'px';
+      toolbar.style.top  = tbTop  + 'px';
+
+      // Update dimension readout (logical pixels)
+      var lw = Math.round(logW);
+      var lh = Math.round(logH);
+      toolbarDims.textContent = lw + ' × ' + lh + ' px';
+    }
+
+    function showToolbar() {
+      toolbar.style.display = 'flex';
+      positionToolbar();
+    }
+
+    function hideToolbar() {
+      toolbar.style.display = 'none';
+    }
+
+    // ── Instructions overlay ───────────────────────────────────────────────────
+
+    function showInstructions() {
+      instructions.classList.remove('hidden');
+    }
+
+    function hideInstructions() {
+      instructions.classList.add('hidden');
+    }
+
+    // ── Mouse interaction ──────────────────────────────────────────────────────
+
+    canvas.addEventListener('mousedown', function(e) {
+      if (e.button !== 0) return;   // left button only
+
+      dragging  = true;
+      startX    = e.clientX * window.devicePixelRatio;
+      startY    = e.clientY * window.devicePixelRatio;
+      selection = { x: startX, y: startY, w: 0, h: 0 };
+
+      hideToolbar();
+      hideInstructions();
+    });
+
+    canvas.addEventListener('mousemove', function(e) {
+      if (!dragging) return;
+
+      var cx = e.clientX * window.devicePixelRatio;
+      var cy = e.clientY * window.devicePixelRatio;
+
+      selection = normalizeRect({
+        x: startX,
+        y: startY,
+        w: cx - startX,
+        h: cy - startY,
+      });
+    });
+
+    canvas.addEventListener('mouseup', function(e) {
+      if (!dragging) return;
+      dragging = false;
+
+      if (selection && selection.w >= 10 && selection.h >= 10) {
+        showToolbar();
+      } else {
+        selection = null;
+        hideToolbar();
+        showInstructions();
+      }
+    });
+
+    // Right-click = cancel
+    canvas.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      doCancel();
+    });
+
+    // ── Action handlers ────────────────────────────────────────────────────────
+
+    function doConfirm() {
+      if (!selection || selection.w < 10 || selection.h < 10) return;
+
+      // Convert canvas (native) pixels → logical CSS pixels
+      window.arki_region.confirmRegion({
+        x:      Math.round(selection.x / scaleFactor),
+        y:      Math.round(selection.y / scaleFactor),
+        width:  Math.round(selection.w / scaleFactor),
+        height: Math.round(selection.h / scaleFactor),
+      });
+    }
+
+    function doCancel() {
+      window.arki_region.cancel();
+    }
+
+    // ── Button listeners ───────────────────────────────────────────────────────
+
+    btnConfirm.addEventListener('click', doConfirm);
+    btnCancel.addEventListener('click',  doCancel);
+
+    // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        doCancel();
+      } else if (e.key === 'Enter') {
+        if (selection && selection.w >= 10 && selection.h >= 10) {
+          doConfirm();
+        }
+      }
+    });
+
+    // ── IPC init ───────────────────────────────────────────────────────────────
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var unsub = window.arki_region.onInit(function(payload) {
+        unsub();  // one-shot: unsubscribe after first init
+
+        scaleFactor = payload.scaleFactor;
+
+        // Size the canvas to the display's native (physical) resolution
+        canvas.width  = payload.displayBounds.width  * payload.scaleFactor;
+        canvas.height = payload.displayBounds.height * payload.scaleFactor;
+
+        // Ensure CSS size fills the viewport
+        canvas.style.width  = payload.displayBounds.width  + 'px';
+        canvas.style.height = payload.displayBounds.height + 'px';
+
+        // Load the screenshot as backdrop
+        var img   = new Image();
+        img.onload = function() {
+          bgImage = img;
+          startRenderLoop();
+          showInstructions();
+        };
+        img.onerror = function() {
+          // Even without screenshot, start the render loop (dim-only backdrop)
+          startRenderLoop();
+          showInstructions();
+        };
+        img.src = 'data:image/png;base64,' + payload.screenshot;
+      });
+    });
+  </script>
+</body>
+</html>

@@ -17,25 +17,25 @@
 
 import { app, Tray, Menu, nativeImage, nativeTheme, ipcMain, shell } from 'electron';
 import * as path from 'path';
-import { HotkeyEngine }           from './hotkey-engine';
-import { CaptureService }         from './capture-service';
-import { PopupManager }           from './popup-manager';
-import { Pipeline, PipelineOptions } from './pipeline';
-import { ConfigManager }          from './config-manager';
-import { BackendBridge }          from './backend-bridge';
-import { BackendProcess }         from './backend-process';
+import { HotkeyEngine }                        from './hotkey-engine';
+import { CaptureManager, registerCaptureIpc }  from './capture';
+import { PopupManager }                        from './popup-manager';
+import { Pipeline, PipelineOptions }           from './pipeline';
+import { ConfigManager }                       from './config-manager';
+import { BackendBridge }                       from './backend-bridge';
+import { BackendProcess }                      from './backend-process';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const IS_DEV = !app.isPackaged || process.env.NODE_ENV === 'development';
-const PRELOAD_PATH = path.join(__dirname, 'preload.js');
+const PRELOAD_PATH = path.join(__dirname, 'preload-popup.js');
 const RENDERER_URL = IS_DEV ? (process.env.RENDERER_URL ?? 'http://localhost:5173') : undefined;
 
 // ── Module-level singletons ────────────────────────────────────────────────────
 
-let tray:            Tray | null        = null;
-let hotkeyEngine:    HotkeyEngine | null = null;
-let captureService:  CaptureService | null = null;
+let tray:            Tray | null           = null;
+let hotkeyEngine:    HotkeyEngine | null   = null;
+let captureManager:  CaptureManager | null = null;
 let popupManager:    PopupManager | null   = null;
 let pipeline:        Pipeline | null       = null;
 let configManager:   ConfigManager | null  = null;
@@ -330,8 +330,20 @@ app.whenReady().then(async () => {
   preloadTrayIcons();
   tray = createTray();
 
-  // ── 5. Capture service ────────────────────────────────────────────────────
-  captureService = new CaptureService();
+  // ── 5. Capture manager ───────────────────────────────────────────────────
+  const preloadRegionPath = path.join(__dirname, 'preload-region.js');
+  const regionSelectorHtml = IS_DEV
+    ? path.join(__dirname, '..', '..', 'region-selector', 'index.html')
+    : path.join(process.resourcesPath, 'region-selector', 'index.html');
+
+  captureManager = new CaptureManager({
+    isDev:       IS_DEV,
+    preloadPath: preloadRegionPath,
+    htmlPath:    regionSelectorHtml,
+    theme:       cfg.popup.theme,
+  });
+  await captureManager.initialize();
+  registerCaptureIpc(captureManager);
 
   // ── 6. Popup manager ──────────────────────────────────────────────────────
   popupManager = new PopupManager(
@@ -346,7 +358,7 @@ app.whenReady().then(async () => {
   await popupManager.initialize();
 
   // ── 7. Pipeline ───────────────────────────────────────────────────────────
-  pipeline = new Pipeline(captureService, backendBridge, popupManager);
+  pipeline = new Pipeline(captureManager, backendBridge, popupManager);
   wirePipelineEvents(pipeline);
 
   // ── 8. Hotkeys ────────────────────────────────────────────────────────────
