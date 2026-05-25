@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --overlay-bg: rgba(10, 10, 15, 0.92);
+    --blur-radius: 16px;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html, body, #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: transparent;
+    color-scheme: dark;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.4);
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.7);
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(99, 102, 241, 0.4);
+    color: #e2e8f0;
+  }
+}
+
+@layer components {
+  /* Glass overlay base */
+  .arki-overlay {
+    @apply bg-arki-surface/90 backdrop-blur-xl border border-arki-border rounded-2xl;
+    background: var(--overlay-bg);
+  }
+
+  /* Panel tab button */
+  .arki-tab {
+    @apply px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-150
+           text-arki-text-muted hover:text-arki-text hover:bg-arki-border/50
+           focus:outline-none focus:ring-1 focus:ring-arki-accent/50;
+  }
+  .arki-tab.active {
+    @apply text-arki-accent bg-arki-accent/10;
+  }
+
+  /* Code block */
+  .arki-code {
+    @apply font-mono text-xs bg-arki-bg rounded-lg p-3 overflow-x-auto
+           border border-arki-border;
+  }
+
+  /* Drag handle */
+  .arki-drag-handle {
+    @apply cursor-grab active:cursor-grabbing select-none;
+    -webkit-app-region: drag;
+  }
+  .arki-no-drag {
+    -webkit-app-region: no-drag;
+  }
+}

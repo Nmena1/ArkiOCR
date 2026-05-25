@@ -1,0 +1,27 @@
+{
+  "name": "arki-desktop",
+  "version": "1.0.0",
+  "description": "ARKI — Enterprise AI Desktop Assistant with OCR, Computer Vision, and AI-powered learning",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n ELECTRON,BACKEND -c cyan,yellow \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && uvicorn main:app --reload --host 127.0.0.1 --port 8000",
+    "build": "npm run build:frontend",
+    "build:frontend": "cd frontend && npm run build",
+    "install:all": "npm install && cd frontend && npm install",
+    "lint": "cd frontend && npm run lint",
+    "typecheck": "cd frontend && npm run typecheck",
+    "clean": "rm -rf frontend/dist frontend/out node_modules frontend/node_modules"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "workspaces": [
+    "frontend"
+  ]
+}

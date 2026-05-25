@@ -1,0 +1,121 @@
+# .CLAUDE/SKILL_REGISTRY.yaml
+
+version: 2.0
+
+global:
+orchestration: enabled
+semantic_routing: enabled
+vector_memory: enabled
+local_ai_fallback: enabled
+
+skills:
+
+* id: screen-capture
+  domain: desktop
+  priority: critical
+  path: ./skills/core/screen-capture.md
+
+  activation_keywords:
+
+  * screenshot
+  * capture
+  * screen
+  * monitor
+
+* id: ocr-engine
+  domain: ai
+  priority: critical
+  path: ./skills/ai/ocr-engine.md
+
+  activation_keywords:
+
+  * text
+  * image
+  * ocr
+  * screenshot
+
+* id: code-understanding
+  domain: programming
+  priority: critical
+  path: ./skills/core/code-understanding.md
+
+  activation_keywords:
+
+  * code
+  * javascript
+  * python
+  * java
+  * react
+  * algorithm
+
+* id: math-reasoning
+  domain: education
+  priority: high
+  path: ./skills/core/math-reasoning.md
+
+  activation_keywords:
+
+  * equation
+  * algebra
+  * calculus
+  * math
+
+* id: english-assistant
+  domain: education
+  priority: medium
+  path: ./skills/core/english-assistant.md
+
+  activation_keywords:
+
+  * english
+  * grammar
+  * translate
+  * vocabulary
+
+* id: context-engine
+  domain: ai
+  priority: critical
+  path: ./skills/ai/context-engine.md
+
+  activation_keywords:
+
+  * history
+  * session
+  * previous
+  * context
+
+* id: ai-routing
+  domain: ai
+  priority: high
+  path: ./skills/ai/ai-routing.md
+
+  activation_keywords:
+
+  * model
+  * openai
+  * ollama
+  * claude
+
+* id: local-llm
+  domain: ai
+  priority: high
+  path: ./skills/ai/local-llm.md
+
+  activation_keywords:
+
+  * ollama
+  * local
+  * offline
+  * llama
+
+* id: overlay-ui
+  domain: frontend
+  priority: medium
+  path: ./skills/platform/overlay-ui.md
+
+  activation_keywords:
+
+  * overlay
+  * floating
+  * window
+  * transparent
