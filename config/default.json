@@ -1,0 +1,42 @@
+{
+  "hotkeys": {
+    "capture": "CommandOrControl+Shift+S",
+    "captureFullscreen": "CommandOrControl+Shift+F",
+    "dismiss": "Escape"
+  },
+  "doublePress": {
+    "enabled": true,
+    "thresholdMs": 300
+  },
+  "capture": {
+    "mode": "active-window",
+    "screenshotDelay": 80
+  },
+  "ocr": {
+    "provider": "tesseract",
+    "fallbackProviders": ["easyocr"],
+    "language": "eng",
+    "minConfidence": 0.3
+  },
+  "ai": {
+    "provider": "ollama",
+    "model": "llama3.2",
+    "fallbackProvider": "openai",
+    "fallbackModel": "gpt-4o-mini",
+    "maxTokens": 500,
+    "temperature": 0.3,
+    "systemPrompt": ""
+  },
+  "popup": {
+    "autoDismissMs": 30000,
+    "position": "cursor",
+    "theme": "dark",
+    "width": 420,
+    "maxHeight": 580
+  },
+  "backend": {
+    "host": "127.0.0.1",
+    "port": 8000,
+    "timeout": 30000
+  }
+}

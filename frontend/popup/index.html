@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARKI</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: rgba(12, 12, 18, 0.95);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-inner: rgba(255, 255, 255, 0.05);
+      --text: #e8e8ec;
+      --secondary: #8888a0;
+      --accent: #6366f1;
+      --accent-dim: rgba(99, 102, 241, 0.15);
+      --code-bg: #1a1a2e;
+      --section-bg: rgba(255, 255, 255, 0.02);
+      --hover-bg: rgba(255, 255, 255, 0.04);
+      --radius: 12px;
+      --radius-sm: 6px;
+      --radius-xs: 4px;
+    }
+
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+      overflow-y: hidden;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.05);
+      min-width: 0;
+      position: relative;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+    /* ── Header / drag handle ── */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      -webkit-app-region: drag;
+      cursor: default;
+      user-select: none;
+    }
+
+    #logo-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px rgba(99, 102, 241, 0.7);
+      flex-shrink: 0;
+    }
+
+    #logo-text {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--text);
+      text-transform: uppercase;
+    }
+
+    #header-spacer { flex: 1; }
+
+    #mode-badge {
+      -webkit-app-region: no-drag;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      text-transform: uppercase;
+      display: none;
+    }
+
+    #close-btn {
+      -webkit-app-region: no-drag;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.06);
+      color: var(--secondary);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+
+    #close-btn:hover {
+      background: rgba(239, 68, 68, 0.25);
+      color: #f87171;
+    }
+
+    /* ── Section base ── */
+    .section {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section:last-of-type {
+      border-bottom: none;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 12px 8px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s;
+      -webkit-app-region: no-drag;
+    }
+
+    .section-header:hover {
+      background: var(--hover-bg);
+    }
+
+    .section-icon {
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--secondary);
+      text-transform: uppercase;
+      flex: 1;
+    }
+
+    .section-title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .model-badge {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 1px 6px;
+      border-radius: 99px;
+      background: rgba(139, 92, 246, 0.18);
+      color: #a78bfa;
+      border: 1px solid rgba(139, 92, 246, 0.25);
+    }
+
+    .chevron {
+      font-size: 10px;
+      color: var(--secondary);
+      transition: transform 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .section.collapsed .chevron {
+      transform: rotate(-90deg);
+    }
+
+    .section-body {
+      overflow: hidden;
+      max-height: 600px;
+      transition: max-height 0.25s ease, opacity 0.2s ease;
+      opacity: 1;
+    }
+
+    .section.collapsed .section-body {
+      max-height: 0;
+      opacity: 0;
+    }
+
+    .section-inner {
+      padding: 0 12px 10px;
+    }
+
+    /* ── OCR Section ── */
+    #ocr-text {
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    #ocr-footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    #ocr-meta {
+      font-size: 11px;
+      color: var(--secondary);
+      flex: 1;
+    }
+
+    #confidence-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 99px;
+      border: 1px solid;
+    }
+
+    .conf-high {
+      background: rgba(34, 197, 94, 0.12);
+      color: #4ade80;
+      border-color: rgba(34, 197, 94, 0.25) !important;
+    }
+
+    .conf-mid {
+      background: rgba(234, 179, 8, 0.12);
+      color: #facc15;
+      border-color: rgba(234, 179, 8, 0.25) !important;
+    }
+
+    .conf-low {
+      background: rgba(239, 68, 68, 0.12);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.25) !important;
+    }
+
+    /* ── AI Section ── */
+    #ai-section {
+      display: none;
+    }
+
+    #ai-content {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+      max-height: 340px;
+      overflow-y: auto;
+    }
+
+    #ai-content p {
+      margin-bottom: 0.6em;
+    }
+
+    #ai-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    #ai-content h2 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0.8em 0 0.4em;
+    }
+
+    #ai-content h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0.7em 0 0.35em;
+    }
+
+    #ai-content h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0.6em 0 0.3em;
+    }
+
+    #ai-content strong {
+      font-weight: 600;
+      color: #f0f0f6;
+    }
+
+    #ai-content em {
+      font-style: italic;
+      color: #c8c8dc;
+    }
+
+    #ai-content hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0.8em 0;
+    }
+
+    #ai-content ul, #ai-content ol {
+      padding-left: 1.4em;
+      margin-bottom: 0.6em;
+    }
+
+    #ai-content li {
+      margin-bottom: 0.2em;
+    }
+
+    #ai-content a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    #ai-content a:hover {
+      text-decoration: underline;
+    }
+
+    code.inline-code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 11.5px;
+      background: var(--code-bg);
+      color: #a5b4fc;
+      padding: 1px 5px;
+      border-radius: var(--radius-xs);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      margin: 0.6em 0;
+      overflow-x: auto;
+    }
+
+    pre code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 11.5px;
+      color: #c8c8e0;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    /* ── Copy button ── */
+    .copy-btn {
+      -webkit-app-region: no-drag;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 9px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--secondary);
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .copy-btn:hover {
+      background: var(--hover-bg);
+      color: var(--text);
+      border-color: rgba(255,255,255,0.14);
+    }
+
+    .copy-btn.copied {
+      color: #4ade80;
+      border-color: rgba(74, 222, 128, 0.3);
+      background: rgba(34, 197, 94, 0.08);
+    }
+
+    #ai-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+
+    /* ── Footer ── */
+    #footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-top: 1px solid var(--border);
+      -webkit-app-region: no-drag;
+    }
+
+    #timing {
+      font-size: 11px;
+      color: var(--secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #timing-icon {
+      font-size: 12px;
+    }
+
+    #footer-spacer { flex: 1; }
+
+    .footer-btn {
+      -webkit-app-region: no-drag;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--secondary);
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+
+    .footer-btn:hover {
+      background: var(--hover-bg);
+      color: var(--text);
+      border-color: rgba(255,255,255,0.14);
+    }
+
+    .footer-btn.primary {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-color: rgba(99, 102, 241, 0.25);
+    }
+
+    .footer-btn.primary:hover {
+      background: rgba(99, 102, 241, 0.22);
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .footer-btn.copied {
+      color: #4ade80;
+      border-color: rgba(74, 222, 128, 0.3);
+      background: rgba(34, 197, 94, 0.08);
+    }
+
+    /* ── Progress bar (auto-dismiss) ── */
+    #progress-bar-wrap {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      border-radius: 0 0 var(--radius) var(--radius);
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    #progress-bar {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(to right, var(--accent), transparent);
+      transform-origin: left center;
+      transition: transform linear;
+    }
+
+    /* ── Loading state ── */
+    #loading-state {
+      padding: 24px 16px;
+      text-align: center;
+      color: var(--secondary);
+      font-size: 12px;
+    }
+
+    .pulse-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1.2s ease-in-out infinite;
+      margin: 0 2px;
+    }
+
+    .pulse-dot:nth-child(2) { animation-delay: 0.2s; }
+    .pulse-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div id="header">
+    <div id="logo-dot"></div>
+    <span id="logo-text">ARKI</span>
+    <div id="header-spacer"></div>
+    <span id="mode-badge"></span>
+    <button id="close-btn" title="Close (Esc)">✕</button>
+  </div>
+
+  <!-- Loading state (shown until data arrives) -->
+  <div id="loading-state">
+    <span class="pulse-dot"></span>
+    <span class="pulse-dot"></span>
+    <span class="pulse-dot"></span>
+  </div>
+
+  <!-- OCR Section -->
+  <div class="section collapsed" id="ocr-section" style="display:none;">
+    <div class="section-header" id="ocr-header">
+      <span class="section-icon">📋</span>
+      <div class="section-title-row">
+        <span class="section-title">OCR</span>
+        <span id="confidence-badge" class="conf-high"></span>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body">
+      <div class="section-inner">
+        <div id="ocr-text"></div>
+        <div id="ocr-footer">
+          <span id="ocr-meta"></span>
+          <button class="copy-btn" id="copy-ocr-btn">Copy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Section -->
+  <div class="section" id="ai-section" style="display:none;">
+    <div class="section-header" id="ai-header">
+      <span class="section-icon">✨</span>
+      <div class="section-title-row">
+        <span class="section-title">AI Response</span>
+        <span id="ai-model" class="model-badge"></span>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body">
+      <div class="section-inner">
+        <div id="ai-content"></div>
+        <div id="ai-footer">
+          <button class="copy-btn" id="copy-ai-btn">Copy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div id="footer" style="display:none;">
+    <div id="timing">
+      <span id="timing-icon">⚡</span>
+      <span id="total-ms">—</span>
+    </div>
+    <div id="footer-spacer"></div>
+    <button class="footer-btn" id="copy-all-btn">Copy All</button>
+    <button class="footer-btn primary" id="dismiss-btn">Dismiss</button>
+  </div>
+
+  <!-- Auto-dismiss progress bar -->
+  <div id="progress-bar-wrap" style="display:none;">
+    <div id="progress-bar"></div>
+  </div>
+
+  <script>
+    'use strict';
+
+    // ── Markdown renderer ──────────────────────────────────────────────────────
+    function renderMarkdown(text) {
+      if (!text) return '';
+
+      // Escape HTML
+      let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Fenced code blocks (before inline processing)
+      html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+        `<pre><code class="lang-${lang || 'text'}">${code.trim()}</code></pre>`
+      );
+
+      // Inline code
+      html = html.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>');
+
+      // Headings
+      html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+      html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+      html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+
+      // Bold / italic
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+      // Horizontal rule
+      html = html.replace(/^---$/gm, '<hr>');
+
+      // Ordered lists
+      html = html.replace(/^(\d+)\. (.+)$/gm, '<li data-ol>$2</li>');
+      // Unordered lists
+      html = html.replace(/^[*-] (.+)$/gm, '<li>$1</li>');
+
+      // Wrap consecutive <li> runs in ul or ol
+      html = html.replace(/(<li data-ol>[\s\S]*?<\/li>\n?)+/g, s => {
+        const items = s.replace(/ data-ol/g, '');
+        return `<ol>${items}</ol>`;
+      });
+      html = html.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, s => `<ul>${s}</ul>`);
+
+      // URLs → auto-link (not inside existing tags)
+      html = html.replace(
+        /(?<!href="|">)(https?:\/\/[^\s<"']+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+      );
+
+      // Paragraphs: split on double newline, skip block elements
+      const blockTags = /^(<\/?(pre|ul|ol|li|h[2-4]|hr|blockquote)[\s>])/;
+      const lines = html.split('\n\n');
+      const wrapped = lines.map(chunk => {
+        const trimmed = chunk.trim();
+        if (!trimmed) return '';
+        if (blockTags.test(trimmed)) return trimmed;
+        return `<p>${trimmed}</p>`;
+      });
+      html = wrapped.join('\n');
+
+      return html;
+    }
+
+    // ── State ──────────────────────────────────────────────────────────────────
+    let _currentData = null;
+    let _progressTimer = null;
+
+    // ── DOM refs ──────────────────────────────────────────────────────────────
+    const $loading       = document.getElementById('loading-state');
+    const $ocrSection    = document.getElementById('ocr-section');
+    const $ocrHeader     = document.getElementById('ocr-header');
+    const $ocrText       = document.getElementById('ocr-text');
+    const $ocrMeta       = document.getElementById('ocr-meta');
+    const $confBadge     = document.getElementById('confidence-badge');
+    const $copyOcr       = document.getElementById('copy-ocr-btn');
+    const $aiSection     = document.getElementById('ai-section');
+    const $aiHeader      = document.getElementById('ai-header');
+    const $aiContent     = document.getElementById('ai-content');
+    const $aiModel       = document.getElementById('ai-model');
+    const $copyAi        = document.getElementById('copy-ai-btn');
+    const $footer        = document.getElementById('footer');
+    const $totalMs       = document.getElementById('total-ms');
+    const $copyAll       = document.getElementById('copy-all-btn');
+    const $dismiss       = document.getElementById('dismiss-btn');
+    const $modeBadge     = document.getElementById('mode-badge');
+    const $progressWrap  = document.getElementById('progress-bar-wrap');
+    const $progressBar   = document.getElementById('progress-bar');
+    const $closeBtn      = document.getElementById('close-btn');
+
+    // ── Confidence badge ──────────────────────────────────────────────────────
+    function applyConfidence(conf) {
+      const pct = Math.round(conf * 100);
+      $confBadge.textContent = `${pct}%`;
+      $confBadge.className = '';
+      if (pct >= 80) $confBadge.className = 'conf-high';
+      else if (pct >= 60) $confBadge.className = 'conf-mid';
+      else $confBadge.className = 'conf-low';
+    }
+
+    // ── Copy helper ───────────────────────────────────────────────────────────
+    function triggerCopy(btn, text) {
+      if (window.arki_popup && window.arki_popup.copy) {
+        window.arki_popup.copy(text);
+      } else {
+        navigator.clipboard.writeText(text).catch(() => {});
+      }
+      const orig = btn.textContent;
+      btn.textContent = '✓ Copied';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.classList.remove('copied');
+      }, 2000);
+    }
+
+    // ── Section toggle ────────────────────────────────────────────────────────
+    function toggleSection(section) {
+      section.classList.toggle('collapsed');
+    }
+
+    // ── Progress bar (auto-dismiss countdown) ─────────────────────────────────
+    function startProgressBar(durationMs) {
+      if (_progressTimer) clearTimeout(_progressTimer);
+      $progressWrap.style.display = 'block';
+      $progressBar.style.transition = 'none';
+      $progressBar.style.transform = 'scaleX(1)';
+      // Force reflow
+      $progressBar.offsetHeight;
+      $progressBar.style.transition = `transform ${durationMs}ms linear`;
+      $progressBar.style.transform = 'scaleX(0)';
+    }
+
+    function stopProgressBar() {
+      if (_progressTimer) clearTimeout(_progressTimer);
+      $progressWrap.style.display = 'none';
+    }
+
+    // ── Main render ───────────────────────────────────────────────────────────
+    function renderPopup(data) {
+      _currentData = data;
+
+      // Hide loading
+      $loading.style.display = 'none';
+
+      // ── OCR section
+      $ocrText.textContent = data.ocr.text || '';
+
+      const providerStr = data.ocr.provider || 'OCR';
+      const confPct = Math.round((data.ocr.confidence || 0) * 100);
+      $ocrMeta.textContent = `${providerStr}`;
+      applyConfidence(data.ocr.confidence || 0);
+
+      $ocrSection.style.display = 'block';
+
+      // ── AI section
+      const hasAi = data.ai && data.ai.response;
+      if (hasAi) {
+        $aiContent.innerHTML = renderMarkdown(data.ai.response);
+        $aiModel.textContent = data.ai.model || '';
+        $aiModel.style.display = data.ai.model ? 'inline' : 'none';
+        $aiSection.style.display = 'block';
+        // Collapse OCR when AI response is present
+        $ocrSection.classList.add('collapsed');
+      } else {
+        $aiSection.style.display = 'none';
+        $ocrSection.classList.remove('collapsed');
+      }
+
+      // ── Mode badge
+      if (data.mode) {
+        $modeBadge.textContent = data.mode;
+        $modeBadge.style.display = 'inline';
+      }
+
+      // ── Footer timing
+      const ms = data.totalMs || 0;
+      $totalMs.textContent = ms > 1000 ? `${(ms / 1000).toFixed(1)}s total` : `${ms}ms total`;
+      $footer.style.display = 'flex';
+
+      // ── Auto-dismiss progress bar
+      if (data.autoDismissMs && data.autoDismissMs > 0) {
+        startProgressBar(data.autoDismissMs);
+      }
+
+      // ── Report height to main process
+      setTimeout(() => {
+        const h = document.body.scrollHeight;
+        if (window.arki_popup && window.arki_popup.resize) {
+          window.arki_popup.resize(Math.min(h + 2, 600));
+        }
+      }, 60);
+    }
+
+    // ── IPC integration ───────────────────────────────────────────────────────
+    function subscribeToData() {
+      if (!window.arki_popup || !window.arki_popup.onData) return;
+      const unsub = window.arki_popup.onData((data) => {
+        renderPopup(data);
+        unsub();
+        subscribeToData(); // re-subscribe for reuse
+      });
+    }
+
+    // ── Event listeners ───────────────────────────────────────────────────────
+    $closeBtn.addEventListener('click', () => {
+      if (window.arki_popup && window.arki_popup.close) window.arki_popup.close();
+    });
+
+    $dismiss.addEventListener('click', () => {
+      if (window.arki_popup && window.arki_popup.close) window.arki_popup.close();
+    });
+
+    $ocrHeader.addEventListener('click', () => toggleSection($ocrSection));
+    $aiHeader.addEventListener('click', () => toggleSection($aiSection));
+
+    $copyOcr.addEventListener('click', (e) => {
+      e.stopPropagation();
+      triggerCopy($copyOcr, $ocrText.textContent);
+    });
+
+    $copyAi.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (_currentData && _currentData.ai) {
+        triggerCopy($copyAi, _currentData.ai.response || '');
+      }
+    });
+
+    $copyAll.addEventListener('click', () => {
+      if (!_currentData) return;
+      const parts = [];
+      if (_currentData.ocr && _currentData.ocr.text) {
+        parts.push(`[OCR]\n${_currentData.ocr.text}`);
+      }
+      if (_currentData.ai && _currentData.ai.response) {
+        parts.push(`[AI Response]\n${_currentData.ai.response}`);
+      }
+      triggerCopy($copyAll, parts.join('\n\n'));
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (window.arki_popup && window.arki_popup.close) window.arki_popup.close();
+      }
+    });
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      subscribeToData();
+
+      // Dev/preview: inject mock data if arki_popup is not available
+      if (!window.arki_popup) {
+        setTimeout(() => {
+          renderPopup({
+            ocr: {
+              text: 'SELECT u.name, COUNT(o.id) AS total_orders\nFROM users u\nLEFT JOIN orders o ON u.id = o.user_id\nGROUP BY u.name\nORDER BY total_orders DESC;',
+              confidence: 0.94,
+              provider: 'Tesseract'
+            },
+            ai: {
+              response: '## Query Analysis\n\nThis query retrieves **users and their order counts** using a `LEFT JOIN` to include users with zero orders.\n\n### Key points\n\n- `LEFT JOIN` ensures all users appear, even with no orders\n- `COUNT(o.id)` counts non-null order rows (correct behavior)\n- Results are sorted descending by order count\n\n### Optimization\n\nConsider adding an index on `orders.user_id`:\n\n```sql\nCREATE INDEX idx_orders_user_id ON orders(user_id);\n```\n\nThis will improve `JOIN` performance on large tables.',
+              model: 'gpt-4o-mini'
+            },
+            totalMs: 1240,
+            autoDismissMs: 15000,
+            mode: 'OCR + AI'
+          });
+        }, 600);
+      }
+    });
+  </script>
+</body>
+</html>
